@@ -10,9 +10,9 @@
   const SCALE_STORAGE_KEY = "notion-pet-scale-pref";
   const DEFAULT_NAME = "Aurora";
   const MAX_NAME_LENGTH = 18;
-  const CARD_BASE_WIDTH = 360;
-  const SCALE_MIN = 0.6;
-  const SCALE_MAX = 1.05;
+  const BASE_CARD_WIDTH = 320;
+  const MIN_UI_SCALE = 0.65;
+  const MAX_UI_SCALE = 1.05;
 
   const SPRITE_PATH = "assets/sprites/";
   const FISH_PATH = "assets/fish/";
@@ -107,7 +107,8 @@
     adoptButton: document.getElementById("adoptButton"),
     cardScaler: document.getElementById("cardScaler"),
     petCard: document.querySelector(".pet-card"),
-    sizeButtons: Array.from(document.querySelectorAll("[data-scale-mode]"))
+    sizeButtons: Array.from(document.querySelectorAll("[data-scale-mode]")),
+    root: document.documentElement
   };
 
   const actionButtons = Array.from(document.querySelectorAll("[data-action]"));
@@ -122,7 +123,6 @@
   let manualScale = 1;
   let currentScale = 1;
   let scaleResizeObserver = null;
-  let cardResizeObserver = null;
   let pendingScaleSync = false;
 
   const storage = initStorage();
@@ -192,7 +192,7 @@
           return;
         }
 
-        const value = clampNumber(button.dataset.scaleValue, SCALE_MIN, SCALE_MAX, manualScale);
+        const value = clampNumber(button.dataset.scaleValue, MIN_UI_SCALE, MAX_UI_SCALE, manualScale);
         if (scaleMode !== "manual" || Math.abs(value - manualScale) > 0.001) {
           scaleMode = "manual";
           manualScale = value;
@@ -204,10 +204,11 @@
     });
 
     if (typeof ResizeObserver === "function") {
-      scaleResizeObserver = new ResizeObserver(queueScaleSync);
-      scaleResizeObserver.observe(elements.cardScaler.parentElement || elements.cardScaler);
-      cardResizeObserver = new ResizeObserver(queueScaleSync);
-      cardResizeObserver.observe(elements.petCard);
+      const target = elements.cardScaler?.parentElement || elements.cardScaler || elements.petCard;
+      if (target) {
+        scaleResizeObserver = new ResizeObserver(queueScaleSync);
+        scaleResizeObserver.observe(target);
+      }
     }
 
     window.addEventListener("resize", queueScaleSync, { passive: true });
@@ -826,7 +827,7 @@
     try {
       const parsed = JSON.parse(raw);
       const mode = parsed.mode === "manual" ? "manual" : "auto";
-      const value = clampNumber(parsed.value, SCALE_MIN, SCALE_MAX, 1);
+      const value = clampNumber(parsed.value, MIN_UI_SCALE, MAX_UI_SCALE, 1);
       return { mode, value };
     } catch (error) {
       console.warn("Unable to load scale preference.", error);
@@ -848,7 +849,7 @@
   function updateScaleButtons() {
     elements.sizeButtons.forEach((button) => {
       const mode = button.dataset.scaleMode;
-      const value = clampNumber(button.dataset.scaleValue, SCALE_MIN, SCALE_MAX, manualScale);
+      const value = clampNumber(button.dataset.scaleValue, MIN_UI_SCALE, MAX_UI_SCALE, manualScale);
       const active = mode === "auto" ? scaleMode === "auto" : scaleMode === "manual" && Math.abs(value - manualScale) <= 0.001;
       button.classList.toggle("active", active);
       button.setAttribute("aria-pressed", active ? "true" : "false");
@@ -867,33 +868,26 @@
   }
 
   function syncScale() {
-    if (!elements.cardScaler || !elements.petCard) {
+    if (!elements.root) {
       return;
     }
 
     let targetScale = manualScale;
     if (scaleMode === "auto") {
-      const availableWidth = (elements.cardScaler.parentElement || document.body).clientWidth || window.innerWidth;
-      targetScale = Math.min(1, availableWidth / CARD_BASE_WIDTH);
+      const container = elements.cardScaler?.parentElement || elements.cardScaler || elements.petCard || document.body;
+      const availableWidth = container && container.clientWidth ? container.clientWidth : window.innerWidth;
+      if (availableWidth) {
+        targetScale = availableWidth / BASE_CARD_WIDTH;
+      }
     }
 
-    targetScale = clamp(targetScale, SCALE_MIN, SCALE_MAX);
+    targetScale = clamp(targetScale, MIN_UI_SCALE, MAX_UI_SCALE);
     if (Math.abs(targetScale - currentScale) <= 0.001) {
-      updateScalerHeight();
       return;
     }
 
     currentScale = targetScale;
-    elements.petCard.style.transform = `scale(${targetScale})`;
-    updateScalerHeight();
-  }
-
-  function updateScalerHeight() {
-    if (!elements.cardScaler || !elements.petCard) {
-      return;
-    }
-    const rect = elements.petCard.getBoundingClientRect();
-    elements.cardScaler.style.height = `${rect.height}px`;
+    elements.root.style.setProperty("--ui-scale", targetScale.toFixed(3));
   }
 
   function initStorage() {
