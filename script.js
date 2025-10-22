@@ -11,7 +11,7 @@
   const DEFAULT_NAME = "Aurora";
   const MAX_NAME_LENGTH = 18;
   const BASE_CARD_WIDTH = 320;
-  const MIN_UI_SCALE = 0.65;
+  const MIN_UI_SCALE = 0.5;
   const MAX_UI_SCALE = 1.05;
 
   const SPRITE_PATH = "assets/sprites/";
@@ -504,8 +504,8 @@
 
   function updateBar(fillElement, value) {
     const percent = Math.max(0, Math.min(100, Math.round((value / MAX_STAT) * 100)));
-    fillElement.style.height = `${percent}%`;
-    fillElement.style.width = "100%";
+    fillElement.style.width = `${percent}%`;
+    fillElement.style.height = "100%";
     const bar = fillElement.parentElement;
     if (bar) {
       bar.setAttribute("aria-valuenow", String(value));
@@ -872,17 +872,25 @@
       return;
     }
 
-    let targetScale = manualScale;
-    if (scaleMode === "auto") {
-      const container = elements.cardScaler?.parentElement || elements.cardScaler || elements.petCard || document.body;
-      const availableWidth = container && container.clientWidth ? container.clientWidth : window.innerWidth;
-      if (availableWidth) {
-        targetScale = availableWidth / BASE_CARD_WIDTH;
-      }
+    const container = elements.cardScaler?.parentElement || elements.cardScaler || elements.petCard || document.body;
+    let availableWidth = 0;
+    if (container) {
+      const bounds = container.getBoundingClientRect();
+      availableWidth = bounds?.width || container.clientWidth || 0;
+    }
+    if (!availableWidth) {
+      availableWidth = window.innerWidth;
+    }
+
+    const maxForWidth = availableWidth ? availableWidth / BASE_CARD_WIDTH : MAX_UI_SCALE;
+    let targetScale = scaleMode === "auto" ? maxForWidth : manualScale;
+
+    if (availableWidth) {
+      targetScale = Math.min(targetScale, maxForWidth);
     }
 
     targetScale = clamp(targetScale, MIN_UI_SCALE, MAX_UI_SCALE);
-    if (Math.abs(targetScale - currentScale) <= 0.001) {
+    if (Math.abs(targetScale - currentScale) <= 0.005) {
       return;
     }
 

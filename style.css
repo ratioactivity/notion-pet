@@ -12,6 +12,7 @@
 
 :root {
   --ui-scale: 1;
+  --card-base-width: 320px;
   --rose-100: #fff2fb;
   --rose-200: #ffd8f2;
   --rose-300: #ffbce8;
@@ -23,7 +24,7 @@
   --mint-400: #9deed8;
   --sky-400: #a0d7ff;
   --card-radius: calc(22px * var(--ui-scale));
-  --tile-size: calc(84px * var(--ui-scale));
+  --tile-size: calc(82px * var(--ui-scale));
   --tile-padding: calc(0.5rem * var(--ui-scale));
 }
 
@@ -51,7 +52,7 @@ body {
 }
 
 .layout-stack {
-  width: min(100%, 380px);
+  width: min(100%, calc(var(--card-base-width) * 1.3));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -67,8 +68,8 @@ body {
 
 .pet-card {
   position: relative;
-  width: 100%;
-  max-width: calc(320px * var(--ui-scale));
+  width: calc(var(--card-base-width) * var(--ui-scale));
+  max-width: 100%;
   padding: calc(2rem * var(--ui-scale)) calc(1.5rem * var(--ui-scale)) calc(1.6rem * var(--ui-scale));
   border-radius: var(--card-radius);
   display: flex;
@@ -89,12 +90,12 @@ body {
 }
 
 .pet-card::before {
-  background: url("assets/bg.png") center / cover no-repeat;
+  background: url("assets/bg.png") center / 100% 100% no-repeat;
   filter: saturate(1.05);
 }
 
 .pet-card::after {
-  background: url("assets/frame.png") center / cover no-repeat;
+  background: url("assets/frame.png") center / 100% 100% no-repeat;
   z-index: 6;
 }
 
@@ -302,19 +303,17 @@ button:focus-visible {
 .stats-panel {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: calc(0.5rem * var(--ui-scale));
+  align-items: stretch;
+  gap: calc(0.45rem * var(--ui-scale));
 }
 
 .stat {
   width: 100%;
-  max-width: var(--tile-size);
-  align-self: center;
-  padding: var(--tile-padding);
-  border-radius: calc(18px * var(--ui-scale));
+  padding: var(--tile-padding) calc(0.75rem * var(--ui-scale));
+  border-radius: calc(16px * var(--ui-scale));
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: calc(0.35rem * var(--ui-scale));
   background: rgba(255, 255, 255, 0.78);
   box-shadow: 0 9px 18px rgba(200, 147, 205, 0.22);
@@ -325,14 +324,14 @@ button:focus-visible {
   color: var(--plum-600);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  text-align: center;
+  text-align: left;
 }
 
 .progress {
   position: relative;
-  width: calc(0.75rem * var(--ui-scale));
-  height: calc(3.6rem * var(--ui-scale));
-  border-radius: 999px;
+  width: 100%;
+  height: calc(0.7rem * var(--ui-scale));
+  border-radius: calc(999px * var(--ui-scale));
   background: rgba(255, 255, 255, 0.9);
   border: calc(2px * var(--ui-scale)) solid rgba(255, 255, 255, 0.95);
   overflow: hidden;
@@ -342,37 +341,37 @@ button:focus-visible {
 .progress::before {
   content: "";
   position: absolute;
-  inset: calc(4px * var(--ui-scale));
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.55);
+  inset: calc(3px * var(--ui-scale));
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.45);
   pointer-events: none;
   z-index: 0;
 }
 
 .progress-fill {
   position: absolute;
-  inset: auto 0 0 0;
-  width: 100%;
-  height: 0%;
+  inset: 0 auto 0 0;
+  height: 100%;
+  width: 0%;
   border-radius: inherit;
-  transition: height 0.35s ease;
+  transition: width 0.35s ease;
   z-index: 1;
 }
 
 #hungerFill {
-  background: linear-gradient(180deg, #ff9fbd 0%, #ffb7df 50%, #ffd0f6 100%);
+  background: linear-gradient(90deg, #ff9fbd 0%, #ffb7df 50%, #ffd0f6 100%);
 }
 
 #sleepinessFill {
-  background: linear-gradient(180deg, #c9bbff 0%, #a2cfff 50%, #8ad2ff 100%);
+  background: linear-gradient(90deg, #c9bbff 0%, #a2cfff 50%, #8ad2ff 100%);
 }
 
 #enrichmentFill {
-  background: linear-gradient(180deg, #b9f7d9 0%, #9beed8 50%, #87e2f0 100%);
+  background: linear-gradient(90deg, #b9f7d9 0%, #9beed8 50%, #87e2f0 100%);
 }
 
 #bondingFill {
-  background: linear-gradient(180deg, #ffc1f3 0%, #ff9fd6 50%, #ff85c4 100%);
+  background: linear-gradient(90deg, #ffc1f3 0%, #ff9fd6 50%, #ff85c4 100%);
 }
 
 .actions {
@@ -511,7 +510,7 @@ button:focus-visible {
   }
 
   .layout-stack {
-    width: min(100%, 340px);
+    width: min(100%, calc(var(--card-base-width) * 1.1));
   }
 
   .pet-card {
