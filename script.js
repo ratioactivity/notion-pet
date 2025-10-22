@@ -260,52 +260,6 @@
     queueScaleSync();
   }
 
-  function setupSizeControls() {
-    if (!elements.cardScaler || !elements.petCard) {
-      return;
-    }
-
-    const saved = loadScalePreference();
-    scaleMode = saved.mode;
-    manualScale = saved.value;
-    updateScaleButtons();
-
-    elements.sizeButtons.forEach((button) => {
-      button.addEventListener("click", () => {
-        const mode = button.dataset.scaleMode;
-        if (mode === "auto") {
-          if (scaleMode !== "auto") {
-            scaleMode = "auto";
-            saveScalePreference();
-            updateScaleButtons();
-            queueScaleSync();
-          }
-          return;
-        }
-
-        const value = clampNumber(button.dataset.scaleValue, MIN_UI_SCALE, MAX_UI_SCALE, manualScale);
-        if (scaleMode !== "manual" || Math.abs(value - manualScale) > 0.001) {
-          scaleMode = "manual";
-          manualScale = value;
-          saveScalePreference();
-          updateScaleButtons();
-          queueScaleSync();
-        }
-      });
-    });
-
-    if (typeof ResizeObserver === "function") {
-      const target = elements.cardScaler?.parentElement || elements.cardScaler || elements.petCard;
-      if (target) {
-        scaleResizeObserver = new ResizeObserver(queueScaleSync);
-        scaleResizeObserver.observe(target);
-      }
-    }
-
-    window.addEventListener("resize", queueScaleSync, { passive: true });
-    queueScaleSync();
-  }
-
   function handleAction(action) {
     tick();
 
@@ -1030,6 +984,7 @@
     elements.renameSubmit.textContent = submitLabel;
     elements.renameInput.value = sanitizeName(initialValue);
     elements.renameDialog.classList.remove("hidden");
+    elements.renameDialog.setAttribute("aria-hidden", "false");
 
     const activeElement = document.activeElement;
     lastFocusedElement = activeElement && typeof activeElement.focus === "function" ? activeElement : null;
@@ -1047,6 +1002,7 @@
       return;
     }
     elements.renameDialog.classList.add("hidden");
+    elements.renameDialog.setAttribute("aria-hidden", "true");
     document.removeEventListener("keydown", handleDialogKeydown, true);
     if (lastFocusedElement && typeof lastFocusedElement.focus === "function") {
       window.setTimeout(() => {

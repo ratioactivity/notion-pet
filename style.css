@@ -526,14 +526,15 @@ button.action:focus-visible:not(:disabled) {
 }
 
 .dialog-backdrop {
-  position: fixed;
+  position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
   background: rgba(134, 93, 149, 0.25);
   backdrop-filter: blur(3px);
-  padding: 1.5rem;
+  padding: calc(1.25rem * var(--ui-scale));
   z-index: 100;
+  border-radius: var(--card-radius);
 }
 
 .dialog-card {

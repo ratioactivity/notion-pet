@@ -172,28 +172,35 @@
 
             <button type="button" id="adoptButton" class="adopt-button hidden">Adopt a new pet</button>
           </div>
+
+          <div
+            class="dialog-backdrop hidden"
+            id="renameDialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="renameTitle"
+            aria-hidden="true"
+          >
+            <form class="dialog-card" id="renameForm">
+              <h2 id="renameTitle">Rename your pet</h2>
+              <label class="dialog-label" for="renameInput">New name</label>
+              <input
+                id="renameInput"
+                name="renameInput"
+                type="text"
+                maxlength="18"
+                autocomplete="off"
+                required
+              />
+              <div class="dialog-actions">
+                <button type="button" class="ghost-button" id="renameCancel">Cancel</button>
+                <button type="submit" class="primary-button" id="renameSubmit">Save</button>
+              </div>
+            </form>
+          </div>
         </div>
       </div>
     </main>
-
-    <div class="dialog-backdrop hidden" id="renameDialog" role="dialog" aria-modal="true" aria-labelledby="renameTitle">
-      <form class="dialog-card" id="renameForm">
-        <h2 id="renameTitle">Rename your pet</h2>
-        <label class="dialog-label" for="renameInput">New name</label>
-        <input
-          id="renameInput"
-          name="renameInput"
-          type="text"
-          maxlength="18"
-          autocomplete="off"
-          required
-        />
-        <div class="dialog-actions">
-          <button type="button" class="ghost-button" id="renameCancel">Cancel</button>
-          <button type="submit" class="primary-button" id="renameSubmit">Save</button>
-        </div>
-      </form>
-    </div>
 
     <script src="script.js" defer></script>
   </body>
