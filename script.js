@@ -503,7 +503,8 @@
 
   function updateBar(fillElement, value) {
     const percent = Math.max(0, Math.min(100, Math.round((value / MAX_STAT) * 100)));
-    fillElement.style.width = `${percent}%`;
+    fillElement.style.height = `${percent}%`;
+    fillElement.style.width = "100%";
     const bar = fillElement.parentElement;
     if (bar) {
       bar.setAttribute("aria-valuenow", String(value));
