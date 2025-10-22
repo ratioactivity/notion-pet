@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Notion Pet</title>
+    <link rel="preload" href="fonts/Starborn-Regular.ttf" as="font" type="font/ttf" crossorigin />
+    <link rel="preload" href="fonts/Papernotes-Regular.ttf" as="font" type="font/ttf" crossorigin />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="page" role="main">
+      <div class="layout-stack">
+        <div class="card-scaler" id="cardScaler">
+          <div class="pet-card" role="region" aria-label="Virtual pet companion">
+            <header class="name-bar">
+              <div class="name-display">
+                <span class="section-label">Name</span>
+                <h1 id="petName">Aurora</h1>
+              </div>
+              <div class="name-controls">
+                <div class="level-display" aria-live="polite">
+                  <span class="section-label">Friendship</span>
+                  <span class="level-value" aria-label="Friendship level"><span id="levelValue">1</span></span>
+                </div>
+                <button type="button" id="renameButton" class="ghost-button">Rename</button>
+              </div>
+            </header>
+
+            <section class="pet-stage" aria-live="polite">
+              <div class="pet-viewport">
+                <img
+                  id="petSprite"
+                  class="pet-sprite"
+                  src="assets/sprites/otter_idle_1.png"
+                  alt="Cozy otter companion"
+                />
+                <div id="petPlaceholder" class="pet-placeholder hidden" role="note"></div>
+                <img id="signalEmote" class="emote hidden" src="assets/emotes/stars.gif" alt="" />
+                <img id="moodEmote" class="emote hidden" src="assets/emotes/tears.gif" alt="" />
+                <img id="fishEmote" class="emote hidden" src="assets/fish/fishfood1.png" alt="Fish snack" />
+                <img
+                  id="crownEmote"
+                  class="emote crown hidden"
+                  src="assets/emotes/crown.png"
+                  alt="Crown emote"
+                />
+              </div>
+            </section>
+
+            <p id="statusMessage" class="status-message" aria-live="polite">
+              Aurora is feeling cozy.
+            </p>
+
+            <section class="stats-panel" aria-label="Pet stats">
+              <article class="stat">
+                <span class="stat-title">Hunger</span>
+                <div
+                  class="progress"
+                  role="progressbar"
+                  aria-label="Hunger"
+                  aria-valuemin="0"
+                  aria-valuemax="20"
+                  aria-valuenow="0"
+                >
+                  <div class="progress-fill" id="hungerFill"></div>
+                </div>
+              </article>
+              <article class="stat">
+                <span class="stat-title">Sleepiness</span>
+                <div
+                  class="progress"
+                  role="progressbar"
+                  aria-label="Sleepiness"
+                  aria-valuemin="0"
+                  aria-valuemax="20"
+                  aria-valuenow="0"
+                >
+                  <div class="progress-fill" id="sleepinessFill"></div>
+                </div>
+              </article>
+              <article class="stat">
+                <span class="stat-title">Enrichment</span>
+                <div
+                  class="progress"
+                  role="progressbar"
+                  aria-label="Enrichment"
+                  aria-valuemin="0"
+                  aria-valuemax="20"
+                  aria-valuenow="0"
+                >
+                  <div class="progress-fill" id="enrichmentFill"></div>
+                </div>
+              </article>
+              <article class="stat">
+                <span class="stat-title">Bonding</span>
+                <div
+                  class="progress"
+                  role="progressbar"
+                  aria-label="Bonding"
+                  aria-valuemin="0"
+                  aria-valuemax="20"
+                  aria-valuenow="0"
+                >
+                  <div class="progress-fill" id="bondingFill"></div>
+                </div>
+              </article>
+            </section>
+
+            <section class="actions" aria-label="Pet actions">
+              <button type="button" class="action" data-action="feed">
+                <span class="action-title">Feed</span>
+                <span class="action-detail">Share a fishy snack</span>
+              </button>
+              <button type="button" class="action" data-action="pet">
+                <span class="action-title">Pet</span>
+                <span class="action-detail">Give cozy scritches</span>
+              </button>
+              <button type="button" class="action" data-action="play">
+                <span class="action-title">Play</span>
+                <span class="action-detail">Toys and tumbles</span>
+              </button>
+              <button type="button" class="action" data-action="exercise">
+                <span class="action-title">Exercise</span>
+                <span class="action-detail">Go for a run</span>
+              </button>
+              <button type="button" class="action" data-action="sleep">
+                <span class="action-title">Sleep</span>
+                <span class="action-detail">Tuck in for rest</span>
+              </button>
+            </section>
+
+            <button type="button" id="adoptButton" class="adopt-button hidden">Adopt a new pet</button>
+          </div>
+        </div>
+
+        <section class="size-controls" aria-label="Display size">
+          <span class="section-label">Display size</span>
+          <div class="size-options" role="group" aria-label="Choose interface scale">
+            <button type="button" class="size-button" data-scale-mode="auto" aria-pressed="false">
+              Auto fit
+            </button>
+            <button
+              type="button"
+              class="size-button"
+              data-scale-mode="manual"
+              data-scale-value="1"
+              aria-pressed="false"
+            >
+              Large
+            </button>
+            <button
+              type="button"
+              class="size-button"
+              data-scale-mode="manual"
+              data-scale-value="0.85"
+              aria-pressed="false"
+            >
+              Medium
+            </button>
+            <button
+              type="button"
+              class="size-button"
+              data-scale-mode="manual"
+              data-scale-value="0.72"
+              aria-pressed="false"
+            >
+              Small
+            </button>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <script src="script.js" defer></script>
+  </body>
+</html>
