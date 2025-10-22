@@ -40,10 +40,27 @@ body {
 
 .page {
   width: 100%;
-  max-width: 360px;
   padding: 2rem 0.75rem;
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.layout-stack {
+  width: min(100%, 380px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.card-scaler {
+  position: relative;
+  width: 100%;
+  display: flex;
   justify-content: center;
+  transition: height 0.2s ease;
 }
 
 .pet-card {
@@ -58,6 +75,8 @@ body {
   align-items: stretch;
   box-shadow: 0 18px 42px rgba(172, 122, 179, 0.3);
   isolation: isolate;
+  transform-origin: top center;
+  transition: transform 0.25s ease;
 }
 
 .pet-card::before,
@@ -410,9 +429,59 @@ button:focus-visible {
   display: none !important;
 }
 
+.size-controls {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: 0 12px 28px rgba(198, 160, 210, 0.32);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  align-items: center;
+  text-align: center;
+}
+
+.size-options {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.size-button {
+  padding: 0.4rem 0.85rem;
+  border-radius: 14px;
+  border: 1px solid rgba(176, 132, 214, 0.35);
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--plum-600);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow: 0 6px 14px rgba(186, 150, 210, 0.25);
+}
+
+.size-button:hover,
+.size-button:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(186, 150, 210, 0.35);
+}
+
+.size-button.active,
+.size-button[aria-pressed="true"] {
+  background: linear-gradient(135deg, rgba(255, 231, 249, 0.95), rgba(228, 205, 255, 0.95));
+  border-color: rgba(176, 132, 214, 0.65);
+  color: var(--plum-500);
+  box-shadow: 0 12px 24px rgba(186, 150, 210, 0.45);
+}
+
 @media (max-width: 440px) {
   .page {
     padding: 1.75rem 0.6rem;
+  }
+
+  .layout-stack {
+    width: min(100%, 340px);
   }
 
   .pet-card {
@@ -429,25 +498,10 @@ button:focus-visible {
   }
 
   .actions {
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  }
-}
-
-@media (max-width: 480px) {
-  .pet-card {
-    padding: 2.75rem 1.75rem 2.25rem;
-    gap: 1.5rem;
-  }
-
-  #petName {
-    font-size: 2.2rem;
-  }
-
-  .pet-viewport {
-    min-height: 210px;
-  }
-
-  .actions {
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  }
+
+  .size-controls {
+    padding: 0.65rem 0.75rem;
   }
 }
