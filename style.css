@@ -429,6 +429,25 @@ button:focus-visible {
   }
 
   .actions {
-    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .pet-card {
+    padding: 2.75rem 1.75rem 2.25rem;
+    gap: 1.5rem;
+  }
+
+  #petName {
+    font-size: 2.2rem;
+  }
+
+  .pet-viewport {
+    min-height: 210px;
+  }
+
+  .actions {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   }
 }
