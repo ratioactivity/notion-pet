@@ -7,8 +7,12 @@
   const LEVEL_CAP = 20;
   const OVERLOAD_DURATION = 3 * 24 * 60 * 60 * 1000;
   const STORAGE_KEY = "notion-pet-state-v1";
+  const SCALE_STORAGE_KEY = "notion-pet-scale-pref";
   const DEFAULT_NAME = "Aurora";
   const MAX_NAME_LENGTH = 18;
+  const BASE_CARD_WIDTH = 320;
+  const MIN_UI_SCALE = 0.65;
+  const MAX_UI_SCALE = 1.05;
 
   const SPRITE_PATH = "assets/sprites/";
   const FISH_PATH = "assets/fish/";
@@ -100,7 +104,11 @@
     petPlaceholder: document.getElementById("petPlaceholder"),
     statusMessage: document.getElementById("statusMessage"),
     renameButton: document.getElementById("renameButton"),
-    adoptButton: document.getElementById("adoptButton")
+    adoptButton: document.getElementById("adoptButton"),
+    cardScaler: document.getElementById("cardScaler"),
+    petCard: document.querySelector(".pet-card"),
+    sizeButtons: Array.from(document.querySelectorAll("[data-scale-mode]")),
+    root: document.documentElement
   };
 
   const actionButtons = Array.from(document.querySelectorAll("[data-action]"));
@@ -111,6 +119,11 @@
   let actionInterval = null;
   let actionTimeout = null;
   let lastActionMessage = "";
+  let scaleMode = "auto";
+  let manualScale = 1;
+  let currentScale = 1;
+  let scaleResizeObserver = null;
+  let pendingScaleSync = false;
 
   const storage = initStorage();
   let isFirstLaunch = false;
@@ -120,6 +133,7 @@
 
   function initialize() {
     attachEventHandlers();
+    setupSizeControls();
 
     if (isFirstLaunch) {
       setName(requestName("Welcome! Name your new pet friend:", DEFAULT_NAME));
@@ -153,6 +167,52 @@
     });
 
     elements.adoptButton.addEventListener("click", adoptNewPet);
+  }
+
+  function setupSizeControls() {
+    if (!elements.cardScaler || !elements.petCard) {
+      return;
+    }
+
+    const saved = loadScalePreference();
+    scaleMode = saved.mode;
+    manualScale = saved.value;
+    updateScaleButtons();
+
+    elements.sizeButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const mode = button.dataset.scaleMode;
+        if (mode === "auto") {
+          if (scaleMode !== "auto") {
+            scaleMode = "auto";
+            saveScalePreference();
+            updateScaleButtons();
+            queueScaleSync();
+          }
+          return;
+        }
+
+        const value = clampNumber(button.dataset.scaleValue, MIN_UI_SCALE, MAX_UI_SCALE, manualScale);
+        if (scaleMode !== "manual" || Math.abs(value - manualScale) > 0.001) {
+          scaleMode = "manual";
+          manualScale = value;
+          saveScalePreference();
+          updateScaleButtons();
+          queueScaleSync();
+        }
+      });
+    });
+
+    if (typeof ResizeObserver === "function") {
+      const target = elements.cardScaler?.parentElement || elements.cardScaler || elements.petCard;
+      if (target) {
+        scaleResizeObserver = new ResizeObserver(queueScaleSync);
+        scaleResizeObserver.observe(target);
+      }
+    }
+
+    window.addEventListener("resize", queueScaleSync, { passive: true });
+    queueScaleSync();
   }
 
   function handleAction(action) {
@@ -400,6 +460,8 @@
     } else if (!idleInterval && !actionInterval) {
       startIdleAnimation();
     }
+
+    queueScaleSync();
   }
 
   function updateStatusText() {
@@ -442,7 +504,8 @@
 
   function updateBar(fillElement, value) {
     const percent = Math.max(0, Math.min(100, Math.round((value / MAX_STAT) * 100)));
-    fillElement.style.width = `${percent}%`;
+    fillElement.style.height = `${percent}%`;
+    fillElement.style.width = "100%";
     const bar = fillElement.parentElement;
     if (bar) {
       bar.setAttribute("aria-valuenow", String(value));
@@ -750,6 +813,81 @@
       return fallback;
     }
     return clamp(numeric, min, max);
+  }
+
+  function loadScalePreference() {
+    const defaults = { mode: "auto", value: 1 };
+    if (!storage) {
+      return defaults;
+    }
+    const raw = storage.getItem(SCALE_STORAGE_KEY);
+    if (!raw) {
+      return defaults;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      const mode = parsed.mode === "manual" ? "manual" : "auto";
+      const value = clampNumber(parsed.value, MIN_UI_SCALE, MAX_UI_SCALE, 1);
+      return { mode, value };
+    } catch (error) {
+      console.warn("Unable to load scale preference.", error);
+      return defaults;
+    }
+  }
+
+  function saveScalePreference() {
+    if (!storage) {
+      return;
+    }
+    try {
+      storage.setItem(SCALE_STORAGE_KEY, JSON.stringify({ mode: scaleMode, value: manualScale }));
+    } catch (error) {
+      console.warn("Unable to save scale preference.", error);
+    }
+  }
+
+  function updateScaleButtons() {
+    elements.sizeButtons.forEach((button) => {
+      const mode = button.dataset.scaleMode;
+      const value = clampNumber(button.dataset.scaleValue, MIN_UI_SCALE, MAX_UI_SCALE, manualScale);
+      const active = mode === "auto" ? scaleMode === "auto" : scaleMode === "manual" && Math.abs(value - manualScale) <= 0.001;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+  }
+
+  function queueScaleSync() {
+    if (pendingScaleSync) {
+      return;
+    }
+    pendingScaleSync = true;
+    window.requestAnimationFrame(() => {
+      pendingScaleSync = false;
+      syncScale();
+    });
+  }
+
+  function syncScale() {
+    if (!elements.root) {
+      return;
+    }
+
+    let targetScale = manualScale;
+    if (scaleMode === "auto") {
+      const container = elements.cardScaler?.parentElement || elements.cardScaler || elements.petCard || document.body;
+      const availableWidth = container && container.clientWidth ? container.clientWidth : window.innerWidth;
+      if (availableWidth) {
+        targetScale = availableWidth / BASE_CARD_WIDTH;
+      }
+    }
+
+    targetScale = clamp(targetScale, MIN_UI_SCALE, MAX_UI_SCALE);
+    if (Math.abs(targetScale - currentScale) <= 0.001) {
+      return;
+    }
+
+    currentScale = targetScale;
+    elements.root.style.setProperty("--ui-scale", targetScale.toFixed(3));
   }
 
   function initStorage() {
