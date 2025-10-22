@@ -108,7 +108,13 @@
     cardScaler: document.getElementById("cardScaler"),
     petCard: document.querySelector(".pet-card"),
     sizeButtons: Array.from(document.querySelectorAll("[data-scale-mode]")),
-    root: document.documentElement
+    root: document.documentElement,
+    renameDialog: document.getElementById("renameDialog"),
+    renameForm: document.getElementById("renameForm"),
+    renameInput: document.getElementById("renameInput"),
+    renameCancel: document.getElementById("renameCancel"),
+    renameTitle: document.getElementById("renameTitle"),
+    renameSubmit: document.getElementById("renameSubmit")
   };
 
   const actionButtons = Array.from(document.querySelectorAll("[data-action]"));
@@ -124,6 +130,8 @@
   let currentScale = 1;
   let scaleResizeObserver = null;
   let pendingScaleSync = false;
+  let lastFocusedElement = null;
+  let nameDialogContext = null;
 
   const storage = initStorage();
   let isFirstLaunch = false;
@@ -136,8 +144,19 @@
     setupSizeControls();
 
     if (isFirstLaunch) {
-      setName(requestName("Welcome! Name your new pet friend:", DEFAULT_NAME));
+      setName(state.name);
       setStatus(`${state.name} is ready for cozy adventures.`);
+      openNameDialog({
+        title: "Welcome! Name your new pet friend:",
+        submitLabel: "Adopt",
+        initialValue: state.name,
+        onConfirm: (newName) => {
+          setName(newName);
+          setStatus(`${state.name} is ready for cozy adventures.`);
+          updateUI();
+          saveState();
+        }
+      });
     } else {
       setName(state.name);
       setStatus(state.alive ? `${state.name} missed you!` : "");
@@ -153,20 +172,92 @@
       button.addEventListener("click", () => handleAction(button.dataset.action));
     });
 
-    elements.renameButton.addEventListener("click", () => {
-      if (!state.alive) {
-        return;
-      }
-      const renamed = requestName("Rename your companion:", state.name);
-      if (renamed !== state.name) {
-        setName(renamed);
-        setStatus(`${state.name} loves their new name.`);
-        updateUI();
-        saveState();
-      }
+    if (elements.renameButton) {
+      elements.renameButton.addEventListener("click", () => {
+        if (!state.alive) {
+          return;
+        }
+        openNameDialog({
+          title: "Rename your companion:",
+          submitLabel: "Save",
+          initialValue: state.name,
+          onConfirm: (newName) => {
+            if (newName !== state.name) {
+              setName(newName);
+              setStatus(`${state.name} loves their new name.`);
+              updateUI();
+              saveState();
+            }
+          }
+        });
+      });
+    }
+
+    if (elements.adoptButton) {
+      elements.adoptButton.addEventListener("click", adoptNewPet);
+    }
+
+    if (elements.renameForm) {
+      elements.renameForm.addEventListener("submit", handleRenameSubmit);
+    }
+
+    if (elements.renameCancel) {
+      elements.renameCancel.addEventListener("click", cancelNameDialog);
+    }
+
+    if (elements.renameDialog) {
+      elements.renameDialog.addEventListener("click", (event) => {
+        if (event.target === elements.renameDialog) {
+          cancelNameDialog();
+        }
+      });
+    }
+  }
+
+  function setupSizeControls() {
+    if (!elements.cardScaler || !elements.petCard) {
+      return;
+    }
+
+    const saved = loadScalePreference();
+    scaleMode = saved.mode;
+    manualScale = saved.value;
+    updateScaleButtons();
+
+    elements.sizeButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const mode = button.dataset.scaleMode;
+        if (mode === "auto") {
+          if (scaleMode !== "auto") {
+            scaleMode = "auto";
+            saveScalePreference();
+            updateScaleButtons();
+            queueScaleSync();
+          }
+          return;
+        }
+
+        const value = clampNumber(button.dataset.scaleValue, MIN_UI_SCALE, MAX_UI_SCALE, manualScale);
+        if (scaleMode !== "manual" || Math.abs(value - manualScale) > 0.001) {
+          scaleMode = "manual";
+          manualScale = value;
+          saveScalePreference();
+          updateScaleButtons();
+          queueScaleSync();
+        }
+      });
     });
 
-    elements.adoptButton.addEventListener("click", adoptNewPet);
+    if (typeof ResizeObserver === "function") {
+      const target = elements.cardScaler?.parentElement || elements.cardScaler || elements.petCard;
+      if (target) {
+        scaleResizeObserver = new ResizeObserver(queueScaleSync);
+        scaleResizeObserver.observe(target);
+      }
+    }
+
+    window.addEventListener("resize", queueScaleSync, { passive: true });
+    queueScaleSync();
   }
 
   function setupSizeControls() {
@@ -405,11 +496,21 @@
     stopAnimations();
     hideEmotes();
     state = createDefaultState();
-    const chosen = requestName("A new pet is ready to move in! What will you name them?", DEFAULT_NAME);
-    setName(chosen);
-    setStatus(`${state.name} wiggles in to meet you.`);
+    setName(state.name);
+    setStatus(`${state.name} is ready for cozy adventures.`);
     updateUI();
     saveState();
+    openNameDialog({
+      title: "A new pet is ready to move in! What will you name them?",
+      submitLabel: "Adopt",
+      initialValue: state.name,
+      onConfirm: (newName) => {
+        setName(newName);
+        setStatus(`${state.name} wiggles in to meet you.`);
+        updateUI();
+        saveState();
+      }
+    });
   }
 
   function setName(name) {
@@ -698,15 +799,6 @@
     image.src = `${src}?v=${Date.now()}`;
   }
 
-  function requestName(promptText, fallback) {
-    const base = sanitizeName(fallback || DEFAULT_NAME);
-    const response = window.prompt(promptText, base);
-    if (!response) {
-      return base;
-    }
-    return sanitizeName(response);
-  }
-
   function sanitizeName(name) {
     const trimmed = String(name || DEFAULT_NAME).trim();
     if (!trimmed) {
@@ -916,5 +1008,82 @@
       mapped[key] = frames.map((frame) => SPRITE_PATH + frame);
     });
     return mapped;
+  }
+
+  function openNameDialog({
+    title = "Rename your pet",
+    submitLabel = "Save",
+    initialValue = state.name,
+    onConfirm = null,
+    onCancel = null
+  } = {}) {
+    if (!elements.renameDialog || !elements.renameInput || !elements.renameSubmit || !elements.renameTitle) {
+      if (typeof onConfirm === "function") {
+        onConfirm(sanitizeName(initialValue));
+      }
+      return;
+    }
+
+    nameDialogContext = { onConfirm, onCancel };
+
+    elements.renameTitle.textContent = title;
+    elements.renameSubmit.textContent = submitLabel;
+    elements.renameInput.value = sanitizeName(initialValue);
+    elements.renameDialog.classList.remove("hidden");
+
+    const activeElement = document.activeElement;
+    lastFocusedElement = activeElement && typeof activeElement.focus === "function" ? activeElement : null;
+
+    window.setTimeout(() => {
+      elements.renameInput.focus();
+      elements.renameInput.select();
+    }, 20);
+
+    document.addEventListener("keydown", handleDialogKeydown, true);
+  }
+
+  function closeNameDialog() {
+    if (!elements.renameDialog) {
+      return;
+    }
+    elements.renameDialog.classList.add("hidden");
+    document.removeEventListener("keydown", handleDialogKeydown, true);
+    if (lastFocusedElement && typeof lastFocusedElement.focus === "function") {
+      window.setTimeout(() => {
+        lastFocusedElement.focus();
+      }, 30);
+    }
+    lastFocusedElement = null;
+  }
+
+  function handleRenameSubmit(event) {
+    event.preventDefault();
+    if (!elements.renameInput) {
+      closeNameDialog();
+      return;
+    }
+    const context = nameDialogContext;
+    const cleaned = sanitizeName(elements.renameInput.value);
+    nameDialogContext = null;
+    closeNameDialog();
+    if (context && typeof context.onConfirm === "function") {
+      context.onConfirm(cleaned);
+    }
+  }
+
+  function cancelNameDialog() {
+    const context = nameDialogContext;
+    nameDialogContext = null;
+    closeNameDialog();
+    if (context && typeof context.onCancel === "function") {
+      context.onCancel();
+    }
+  }
+
+  function handleDialogKeydown(event) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      cancelNameDialog();
+    }
   }
 })();
