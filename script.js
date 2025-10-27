@@ -5,7 +5,7 @@
   const MAX_STAT = 20;
   const WARN_THRESHOLD = 15;
   const LEVEL_CAP = 20;
-  const OVERLOAD_DURATION = 3 * 24 * 60 * 60 * 1000;
+  const OVERLOAD_DURATION = 7 * 24 * 60 * 60 * 1000;
   const STORAGE_KEY = "notion-pet-state-v1";
   const SCALE_STORAGE_KEY = "notion-pet-scale-pref";
   const DEFAULT_NAME = "Aurora";
@@ -105,6 +105,7 @@
     statusMessage: document.getElementById("statusMessage"),
     renameButton: document.getElementById("renameButton"),
     adoptButton: document.getElementById("adoptButton"),
+    reviveButton: document.getElementById("reviveButton"),
     cardScaler: document.getElementById("cardScaler"),
     petCard: document.querySelector(".pet-card"),
     sizeButtons: Array.from(document.querySelectorAll("[data-scale-mode]")),
@@ -195,6 +196,10 @@
 
     if (elements.adoptButton) {
       elements.adoptButton.addEventListener("click", adoptNewPet);
+    }
+
+    if (elements.reviveButton) {
+      elements.reviveButton.addEventListener("click", revivePet);
     }
 
     if (elements.renameForm) {
@@ -434,12 +439,18 @@
     hideEmotes();
 
     const snark = deathSnark[Math.floor(Math.random() * deathSnark.length)];
-    const message = `Your pet has died. ${snark}`;
+    const reviveTarget = Math.max(1, state.level - 1);
+    const reviveHint =
+      state.level > 1
+        ? ` Revive them to bring them back at level ${reviveTarget}.`
+        : " Revive them to give them another chance.";
+    const message = `Your pet has died. ${snark}${reviveHint}`;
     state.deathNote = message;
     state.deathSnarkLine = snark;
     state.hungerMaxTimestamp = null;
     state.sleepinessMaxTimestamp = null;
     state.overloadStart = null;
+    state.reviveLevel = reviveTarget;
 
     setStatus("");
     updateUI();
@@ -465,6 +476,42 @@
         saveState();
       }
     });
+  }
+
+  function revivePet() {
+    if (state.alive || state.reviveLevel == null) {
+      return;
+    }
+
+    const revivedLevel = clamp(state.reviveLevel, 1, LEVEL_CAP);
+    const previousLevel = state.level;
+
+    state.level = revivedLevel;
+    state.alive = true;
+    state.reviveLevel = null;
+    state.hunger = 0;
+    state.sleepiness = 0;
+    state.enrichment = 0;
+    state.bonding = 0;
+    state.lastTick = Date.now();
+    state.hungerMaxTimestamp = null;
+    state.sleepinessMaxTimestamp = null;
+    state.overloadStart = null;
+    state.deathNote = "";
+    state.deathSnarkLine = "";
+
+    stopAnimations();
+    hideEmotes();
+
+    const levelDrop = Math.max(0, previousLevel - state.level);
+    const message = levelDrop
+      ? `${state.name} returns, but their friendship level slipped to ${state.level}.`
+      : `${state.name} returns, grateful for a second chance.`;
+    setStatus(message);
+
+    updateUI();
+    showTemporaryEmote("heart", 2600, `${state.name} is relieved to be back`);
+    saveState();
   }
 
   function setName(name) {
@@ -494,12 +541,20 @@
       elements.petPlaceholder.innerHTML = "";
     } else {
       const snark = state.deathSnarkLine || "Maybe try nurturing instead of neglect.";
-      elements.petPlaceholder.innerHTML = `<strong>Your pet has died.</strong><span>${snark}</span>`;
+      const reviveHint =
+        state.reviveLevel != null
+          ? `<span class="revive-hint">Revive them to return at level ${state.reviveLevel}.</span>`
+          : "";
+      elements.petPlaceholder.innerHTML = `<strong>Your pet has died.</strong><span>${snark}</span>${reviveHint}`;
     }
 
     elements.crownEmote.classList.toggle("hidden", !showPet || state.level < LEVEL_CAP);
     elements.crownEmote.alt = showPet && state.level >= LEVEL_CAP ? `${state.name} wears a tiny crown` : "Crown emote";
     elements.adoptButton.classList.toggle("hidden", showPet);
+    if (elements.reviveButton) {
+      const canRevive = !showPet && state.reviveLevel != null;
+      elements.reviveButton.classList.toggle("hidden", !canRevive);
+    }
     elements.renameButton.disabled = !showPet;
     elements.renameButton.setAttribute("aria-disabled", showPet ? "false" : "true");
 
@@ -781,6 +836,7 @@
       overloadStart: null,
       deathNote: "",
       deathSnarkLine: "",
+      reviveLevel: null,
       createdAt: now
     };
   }
@@ -815,6 +871,8 @@
       sanitized.overloadStart = typeof parsed.overloadStart === "number" ? parsed.overloadStart : null;
       sanitized.deathNote = typeof parsed.deathNote === "string" ? parsed.deathNote : "";
       sanitized.deathSnarkLine = typeof parsed.deathSnarkLine === "string" ? parsed.deathSnarkLine : "";
+      sanitized.reviveLevel =
+        typeof parsed.reviveLevel === "number" ? clamp(parsed.reviveLevel, 1, LEVEL_CAP) : null;
       sanitized.createdAt = typeof parsed.createdAt === "number" ? parsed.createdAt : base.createdAt;
 
       isFirstLaunch = false;
@@ -844,6 +902,7 @@
       overloadStart: state.overloadStart,
       deathNote: state.deathNote,
       deathSnarkLine: state.deathSnarkLine,
+      reviveLevel: state.reviveLevel,
       createdAt: state.createdAt
     };
     try {

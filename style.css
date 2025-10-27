@@ -266,6 +266,12 @@ button:focus-visible {
   color: var(--plum-500);
 }
 
+.pet-placeholder .revive-hint {
+  font-size: calc(0.78rem * var(--ui-scale));
+  color: var(--plum-500);
+  max-width: 20ch;
+}
+
 .emote {
   position: absolute;
   pointer-events: none;
@@ -473,6 +479,16 @@ button.action:focus-visible:not(:disabled) {
 .adopt-button:focus-visible:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 20px 36px rgba(170, 178, 255, 0.45);
+}
+
+.revive-button {
+  background: linear-gradient(140deg, #ffe7f2 0%, #ffe0fb 100%);
+  box-shadow: 0 16px 30px rgba(245, 169, 210, 0.32);
+}
+
+.revive-button:hover:not(:disabled),
+.revive-button:focus-visible:not(:disabled) {
+  box-shadow: 0 20px 36px rgba(245, 169, 210, 0.45);
 }
 
 .hidden {
