@@ -105,6 +105,7 @@
     statusMessage: document.getElementById("statusMessage"),
     renameButton: document.getElementById("renameButton"),
     adoptButton: document.getElementById("adoptButton"),
+    afterlifeActions: document.getElementById("afterlifeActions"),
     reviveButton: document.getElementById("reviveButton"),
     cardScaler: document.getElementById("cardScaler"),
     petCard: document.querySelector(".pet-card"),
@@ -144,6 +145,8 @@
     attachEventHandlers();
     setupSizeControls();
 
+    const reviveStateChanged = ensureReviveAvailability();
+
     if (isFirstLaunch) {
       setName(state.name);
       setStatus(`${state.name} is ready for cozy adventures.`);
@@ -164,6 +167,9 @@
     }
 
     updateUI();
+    if (reviveStateChanged) {
+      saveState();
+    }
     tick(true);
     window.setInterval(tick, 60 * 1000);
   }
@@ -464,52 +470,6 @@
     setName(state.name);
     setStatus(`${state.name} is ready for cozy adventures.`);
     updateUI();
-    saveState();
-    openNameDialog({
-      title: "A new pet is ready to move in! What will you name them?",
-      submitLabel: "Adopt",
-      initialValue: state.name,
-      onConfirm: (newName) => {
-        setName(newName);
-        setStatus(`${state.name} wiggles in to meet you.`);
-        updateUI();
-        saveState();
-      }
-    });
-  }
-
-  function revivePet() {
-    if (state.alive || state.reviveLevel == null) {
-      return;
-    }
-
-    const revivedLevel = clamp(state.reviveLevel, 1, LEVEL_CAP);
-    const previousLevel = state.level;
-
-    state.level = revivedLevel;
-    state.alive = true;
-    state.reviveLevel = null;
-    state.hunger = 0;
-    state.sleepiness = 0;
-    state.enrichment = 0;
-    state.bonding = 0;
-    state.lastTick = Date.now();
-    state.hungerMaxTimestamp = null;
-    state.sleepinessMaxTimestamp = null;
-    state.overloadStart = null;
-    state.deathNote = "";
-    state.deathSnarkLine = "";
-
-    stopAnimations();
-    hideEmotes();
-
-    const levelDrop = Math.max(0, previousLevel - state.level);
-    const message = levelDrop
-      ? `${state.name} returns, but their friendship level slipped to ${state.level}.`
-      : `${state.name} returns, grateful for a second chance.`;
-    setStatus(message);
-
-    updateUI();
     showTemporaryEmote("heart", 2600, `${state.name} is relieved to be back`);
     saveState();
     openNameDialog({
@@ -583,6 +543,9 @@
     const showPet = state.alive;
     elements.petSprite.classList.toggle("hidden", !showPet);
     elements.petPlaceholder.classList.toggle("hidden", showPet);
+    if (elements.afterlifeActions) {
+      elements.afterlifeActions.classList.toggle("hidden", showPet);
+    }
 
     if (showPet) {
       elements.petPlaceholder.innerHTML = "";
@@ -601,6 +564,14 @@
     if (elements.reviveButton) {
       const canRevive = !showPet && state.reviveLevel != null;
       elements.reviveButton.classList.toggle("hidden", !canRevive);
+      if (canRevive) {
+        const reviveLabel =
+          state.level > 1
+            ? `Revive at level ${state.reviveLevel}`
+            : "Revive your pet";
+        elements.reviveButton.textContent = reviveLabel;
+        elements.reviveButton.setAttribute("aria-label", reviveLabel);
+      }
     }
     elements.renameButton.disabled = !showPet;
     elements.renameButton.setAttribute("aria-disabled", showPet ? "false" : "true");
@@ -934,6 +905,36 @@
       isFirstLaunch = true;
       return base;
     }
+  }
+
+  function ensureReviveAvailability() {
+    if (state.alive) {
+      return false;
+    }
+
+    let changed = false;
+    if (state.reviveLevel == null) {
+      state.reviveLevel = clamp(Math.max(1, state.level - 1), 1, LEVEL_CAP);
+      changed = true;
+    }
+
+    if (state.reviveLevel != null) {
+      const reviveHint =
+        state.level > 1
+          ? ` Revive them to bring them back at level ${state.reviveLevel}.`
+          : " Revive them to give them another chance.";
+      const baseNote = state.deathNote && state.deathNote.trim().length
+        ? state.deathNote.trim()
+        : `Your pet has died.${state.deathSnarkLine ? ` ${state.deathSnarkLine}` : ""}`;
+      if (!baseNote.includes("Revive them")) {
+        state.deathNote = `${baseNote}${reviveHint}`;
+        changed = true;
+      } else {
+        state.deathNote = baseNote;
+      }
+    }
+
+    return changed;
   }
 
   function saveState() {
