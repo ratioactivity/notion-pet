@@ -5,10 +5,14 @@
   const MAX_STAT = 20;
   const WARN_THRESHOLD = 15;
   const LEVEL_CAP = 20;
-  const OVERLOAD_DURATION = 3 * 24 * 60 * 60 * 1000;
+  const OVERLOAD_DURATION = 7 * 24 * 60 * 60 * 1000;
   const STORAGE_KEY = "notion-pet-state-v1";
+  const SCALE_STORAGE_KEY = "notion-pet-scale-pref";
   const DEFAULT_NAME = "Aurora";
   const MAX_NAME_LENGTH = 18;
+  const BASE_CARD_WIDTH = 320;
+  const MIN_UI_SCALE = 0.5;
+  const MAX_UI_SCALE = 1.05;
 
   const SPRITE_PATH = "assets/sprites/";
   const FISH_PATH = "assets/fish/";
@@ -100,7 +104,18 @@
     petPlaceholder: document.getElementById("petPlaceholder"),
     statusMessage: document.getElementById("statusMessage"),
     renameButton: document.getElementById("renameButton"),
-    adoptButton: document.getElementById("adoptButton")
+    adoptButton: document.getElementById("adoptButton"),
+    reviveButton: document.getElementById("reviveButton"),
+    cardScaler: document.getElementById("cardScaler"),
+    petCard: document.querySelector(".pet-card"),
+    sizeButtons: Array.from(document.querySelectorAll("[data-scale-mode]")),
+    root: document.documentElement,
+    renameDialog: document.getElementById("renameDialog"),
+    renameForm: document.getElementById("renameForm"),
+    renameInput: document.getElementById("renameInput"),
+    renameCancel: document.getElementById("renameCancel"),
+    renameTitle: document.getElementById("renameTitle"),
+    renameSubmit: document.getElementById("renameSubmit")
   };
 
   const actionButtons = Array.from(document.querySelectorAll("[data-action]"));
@@ -111,6 +126,13 @@
   let actionInterval = null;
   let actionTimeout = null;
   let lastActionMessage = "";
+  let scaleMode = "auto";
+  let manualScale = 1;
+  let currentScale = 1;
+  let scaleResizeObserver = null;
+  let pendingScaleSync = false;
+  let lastFocusedElement = null;
+  let nameDialogContext = null;
 
   const storage = initStorage();
   let isFirstLaunch = false;
@@ -120,10 +142,22 @@
 
   function initialize() {
     attachEventHandlers();
+    setupSizeControls();
 
     if (isFirstLaunch) {
-      setName(requestName("Welcome! Name your new pet friend:", DEFAULT_NAME));
+      setName(state.name);
       setStatus(`${state.name} is ready for cozy adventures.`);
+      openNameDialog({
+        title: "Welcome! Name your new pet friend:",
+        submitLabel: "Adopt",
+        initialValue: state.name,
+        onConfirm: (newName) => {
+          setName(newName);
+          setStatus(`${state.name} is ready for cozy adventures.`);
+          updateUI();
+          saveState();
+        }
+      });
     } else {
       setName(state.name);
       setStatus(state.alive ? `${state.name} missed you!` : "");
@@ -139,20 +173,96 @@
       button.addEventListener("click", () => handleAction(button.dataset.action));
     });
 
-    elements.renameButton.addEventListener("click", () => {
-      if (!state.alive) {
-        return;
-      }
-      const renamed = requestName("Rename your companion:", state.name);
-      if (renamed !== state.name) {
-        setName(renamed);
-        setStatus(`${state.name} loves their new name.`);
-        updateUI();
-        saveState();
-      }
+    if (elements.renameButton) {
+      elements.renameButton.addEventListener("click", () => {
+        if (!state.alive) {
+          return;
+        }
+        openNameDialog({
+          title: "Rename your companion:",
+          submitLabel: "Save",
+          initialValue: state.name,
+          onConfirm: (newName) => {
+            if (newName !== state.name) {
+              setName(newName);
+              setStatus(`${state.name} loves their new name.`);
+              updateUI();
+              saveState();
+            }
+          }
+        });
+      });
+    }
+
+    if (elements.adoptButton) {
+      elements.adoptButton.addEventListener("click", adoptNewPet);
+    }
+
+    if (elements.reviveButton) {
+      elements.reviveButton.addEventListener("click", revivePet);
+    }
+
+    if (elements.renameForm) {
+      elements.renameForm.addEventListener("submit", handleRenameSubmit);
+    }
+
+    if (elements.renameCancel) {
+      elements.renameCancel.addEventListener("click", cancelNameDialog);
+    }
+
+    if (elements.renameDialog) {
+      elements.renameDialog.addEventListener("click", (event) => {
+        if (event.target === elements.renameDialog) {
+          cancelNameDialog();
+        }
+      });
+    }
+  }
+
+  function setupSizeControls() {
+    if (!elements.cardScaler || !elements.petCard) {
+      return;
+    }
+
+    const saved = loadScalePreference();
+    scaleMode = saved.mode;
+    manualScale = saved.value;
+    updateScaleButtons();
+
+    elements.sizeButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const mode = button.dataset.scaleMode;
+        if (mode === "auto") {
+          if (scaleMode !== "auto") {
+            scaleMode = "auto";
+            saveScalePreference();
+            updateScaleButtons();
+            queueScaleSync();
+          }
+          return;
+        }
+
+        const value = clampNumber(button.dataset.scaleValue, MIN_UI_SCALE, MAX_UI_SCALE, manualScale);
+        if (scaleMode !== "manual" || Math.abs(value - manualScale) > 0.001) {
+          scaleMode = "manual";
+          manualScale = value;
+          saveScalePreference();
+          updateScaleButtons();
+          queueScaleSync();
+        }
+      });
     });
 
-    elements.adoptButton.addEventListener("click", adoptNewPet);
+    if (typeof ResizeObserver === "function") {
+      const target = elements.cardScaler?.parentElement || elements.cardScaler || elements.petCard;
+      if (target) {
+        scaleResizeObserver = new ResizeObserver(queueScaleSync);
+        scaleResizeObserver.observe(target);
+      }
+    }
+
+    window.addEventListener("resize", queueScaleSync, { passive: true });
+    queueScaleSync();
   }
 
   function handleAction(action) {
@@ -329,12 +439,18 @@
     hideEmotes();
 
     const snark = deathSnark[Math.floor(Math.random() * deathSnark.length)];
-    const message = `Your pet has died. ${snark}`;
+    const reviveTarget = Math.max(1, state.level - 1);
+    const reviveHint =
+      state.level > 1
+        ? ` Revive them to bring them back at level ${reviveTarget}.`
+        : " Revive them to give them another chance.";
+    const message = `Your pet has died. ${snark}${reviveHint}`;
     state.deathNote = message;
     state.deathSnarkLine = snark;
     state.hungerMaxTimestamp = null;
     state.sleepinessMaxTimestamp = null;
     state.overloadStart = null;
+    state.reviveLevel = reviveTarget;
 
     setStatus("");
     updateUI();
@@ -345,10 +461,56 @@
     stopAnimations();
     hideEmotes();
     state = createDefaultState();
-    const chosen = requestName("A new pet is ready to move in! What will you name them?", DEFAULT_NAME);
-    setName(chosen);
-    setStatus(`${state.name} wiggles in to meet you.`);
+    setName(state.name);
+    setStatus(`${state.name} is ready for cozy adventures.`);
     updateUI();
+    saveState();
+    openNameDialog({
+      title: "A new pet is ready to move in! What will you name them?",
+      submitLabel: "Adopt",
+      initialValue: state.name,
+      onConfirm: (newName) => {
+        setName(newName);
+        setStatus(`${state.name} wiggles in to meet you.`);
+        updateUI();
+        saveState();
+      }
+    });
+  }
+
+  function revivePet() {
+    if (state.alive || state.reviveLevel == null) {
+      return;
+    }
+
+    const revivedLevel = clamp(state.reviveLevel, 1, LEVEL_CAP);
+    const previousLevel = state.level;
+
+    state.level = revivedLevel;
+    state.alive = true;
+    state.reviveLevel = null;
+    state.hunger = 0;
+    state.sleepiness = 0;
+    state.enrichment = 0;
+    state.bonding = 0;
+    state.lastTick = Date.now();
+    state.hungerMaxTimestamp = null;
+    state.sleepinessMaxTimestamp = null;
+    state.overloadStart = null;
+    state.deathNote = "";
+    state.deathSnarkLine = "";
+
+    stopAnimations();
+    hideEmotes();
+
+    const levelDrop = Math.max(0, previousLevel - state.level);
+    const message = levelDrop
+      ? `${state.name} returns, but their friendship level slipped to ${state.level}.`
+      : `${state.name} returns, grateful for a second chance.`;
+    setStatus(message);
+
+    updateUI();
+    showTemporaryEmote("heart", 2600, `${state.name} is relieved to be back`);
     saveState();
   }
 
@@ -379,12 +541,20 @@
       elements.petPlaceholder.innerHTML = "";
     } else {
       const snark = state.deathSnarkLine || "Maybe try nurturing instead of neglect.";
-      elements.petPlaceholder.innerHTML = `<strong>Your pet has died.</strong><span>${snark}</span>`;
+      const reviveHint =
+        state.reviveLevel != null
+          ? `<span class="revive-hint">Revive them to return at level ${state.reviveLevel}.</span>`
+          : "";
+      elements.petPlaceholder.innerHTML = `<strong>Your pet has died.</strong><span>${snark}</span>${reviveHint}`;
     }
 
     elements.crownEmote.classList.toggle("hidden", !showPet || state.level < LEVEL_CAP);
     elements.crownEmote.alt = showPet && state.level >= LEVEL_CAP ? `${state.name} wears a tiny crown` : "Crown emote";
     elements.adoptButton.classList.toggle("hidden", showPet);
+    if (elements.reviveButton) {
+      const canRevive = !showPet && state.reviveLevel != null;
+      elements.reviveButton.classList.toggle("hidden", !canRevive);
+    }
     elements.renameButton.disabled = !showPet;
     elements.renameButton.setAttribute("aria-disabled", showPet ? "false" : "true");
 
@@ -400,6 +570,8 @@
     } else if (!idleInterval && !actionInterval) {
       startIdleAnimation();
     }
+
+    queueScaleSync();
   }
 
   function updateStatusText() {
@@ -443,6 +615,7 @@
   function updateBar(fillElement, value) {
     const percent = Math.max(0, Math.min(100, Math.round((value / MAX_STAT) * 100)));
     fillElement.style.width = `${percent}%`;
+    fillElement.style.height = "100%";
     const bar = fillElement.parentElement;
     if (bar) {
       bar.setAttribute("aria-valuenow", String(value));
@@ -635,15 +808,6 @@
     image.src = `${src}?v=${Date.now()}`;
   }
 
-  function requestName(promptText, fallback) {
-    const base = sanitizeName(fallback || DEFAULT_NAME);
-    const response = window.prompt(promptText, base);
-    if (!response) {
-      return base;
-    }
-    return sanitizeName(response);
-  }
-
   function sanitizeName(name) {
     const trimmed = String(name || DEFAULT_NAME).trim();
     if (!trimmed) {
@@ -672,6 +836,7 @@
       overloadStart: null,
       deathNote: "",
       deathSnarkLine: "",
+      reviveLevel: null,
       createdAt: now
     };
   }
@@ -706,6 +871,13 @@
       sanitized.overloadStart = typeof parsed.overloadStart === "number" ? parsed.overloadStart : null;
       sanitized.deathNote = typeof parsed.deathNote === "string" ? parsed.deathNote : "";
       sanitized.deathSnarkLine = typeof parsed.deathSnarkLine === "string" ? parsed.deathSnarkLine : "";
+      if (typeof parsed.reviveLevel === "number") {
+        sanitized.reviveLevel = clamp(parsed.reviveLevel, 1, LEVEL_CAP);
+      } else if (!sanitized.alive) {
+        sanitized.reviveLevel = clamp(Math.max(1, sanitized.level - 1), 1, LEVEL_CAP);
+      } else {
+        sanitized.reviveLevel = null;
+      }
       sanitized.createdAt = typeof parsed.createdAt === "number" ? parsed.createdAt : base.createdAt;
 
       isFirstLaunch = false;
@@ -735,6 +907,7 @@
       overloadStart: state.overloadStart,
       deathNote: state.deathNote,
       deathSnarkLine: state.deathSnarkLine,
+      reviveLevel: state.reviveLevel,
       createdAt: state.createdAt
     };
     try {
@@ -750,6 +923,89 @@
       return fallback;
     }
     return clamp(numeric, min, max);
+  }
+
+  function loadScalePreference() {
+    const defaults = { mode: "auto", value: 1 };
+    if (!storage) {
+      return defaults;
+    }
+    const raw = storage.getItem(SCALE_STORAGE_KEY);
+    if (!raw) {
+      return defaults;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      const mode = parsed.mode === "manual" ? "manual" : "auto";
+      const value = clampNumber(parsed.value, MIN_UI_SCALE, MAX_UI_SCALE, 1);
+      return { mode, value };
+    } catch (error) {
+      console.warn("Unable to load scale preference.", error);
+      return defaults;
+    }
+  }
+
+  function saveScalePreference() {
+    if (!storage) {
+      return;
+    }
+    try {
+      storage.setItem(SCALE_STORAGE_KEY, JSON.stringify({ mode: scaleMode, value: manualScale }));
+    } catch (error) {
+      console.warn("Unable to save scale preference.", error);
+    }
+  }
+
+  function updateScaleButtons() {
+    elements.sizeButtons.forEach((button) => {
+      const mode = button.dataset.scaleMode;
+      const value = clampNumber(button.dataset.scaleValue, MIN_UI_SCALE, MAX_UI_SCALE, manualScale);
+      const active = mode === "auto" ? scaleMode === "auto" : scaleMode === "manual" && Math.abs(value - manualScale) <= 0.001;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+  }
+
+  function queueScaleSync() {
+    if (pendingScaleSync) {
+      return;
+    }
+    pendingScaleSync = true;
+    window.requestAnimationFrame(() => {
+      pendingScaleSync = false;
+      syncScale();
+    });
+  }
+
+  function syncScale() {
+    if (!elements.root) {
+      return;
+    }
+
+    const container = elements.cardScaler?.parentElement || elements.cardScaler || elements.petCard || document.body;
+    let availableWidth = 0;
+    if (container) {
+      const bounds = container.getBoundingClientRect();
+      availableWidth = bounds?.width || container.clientWidth || 0;
+    }
+    if (!availableWidth) {
+      availableWidth = window.innerWidth;
+    }
+
+    const maxForWidth = availableWidth ? availableWidth / BASE_CARD_WIDTH : MAX_UI_SCALE;
+    let targetScale = scaleMode === "auto" ? maxForWidth : manualScale;
+
+    if (availableWidth) {
+      targetScale = Math.min(targetScale, maxForWidth);
+    }
+
+    targetScale = clamp(targetScale, MIN_UI_SCALE, MAX_UI_SCALE);
+    if (Math.abs(targetScale - currentScale) <= 0.005) {
+      return;
+    }
+
+    currentScale = targetScale;
+    elements.root.style.setProperty("--ui-scale", targetScale.toFixed(3));
   }
 
   function initStorage() {
@@ -770,5 +1026,84 @@
       mapped[key] = frames.map((frame) => SPRITE_PATH + frame);
     });
     return mapped;
+  }
+
+  function openNameDialog({
+    title = "Rename your pet",
+    submitLabel = "Save",
+    initialValue = state.name,
+    onConfirm = null,
+    onCancel = null
+  } = {}) {
+    if (!elements.renameDialog || !elements.renameInput || !elements.renameSubmit || !elements.renameTitle) {
+      if (typeof onConfirm === "function") {
+        onConfirm(sanitizeName(initialValue));
+      }
+      return;
+    }
+
+    nameDialogContext = { onConfirm, onCancel };
+
+    elements.renameTitle.textContent = title;
+    elements.renameSubmit.textContent = submitLabel;
+    elements.renameInput.value = sanitizeName(initialValue);
+    elements.renameDialog.classList.remove("hidden");
+    elements.renameDialog.setAttribute("aria-hidden", "false");
+
+    const activeElement = document.activeElement;
+    lastFocusedElement = activeElement && typeof activeElement.focus === "function" ? activeElement : null;
+
+    window.setTimeout(() => {
+      elements.renameInput.focus();
+      elements.renameInput.select();
+    }, 20);
+
+    document.addEventListener("keydown", handleDialogKeydown, true);
+  }
+
+  function closeNameDialog() {
+    if (!elements.renameDialog) {
+      return;
+    }
+    elements.renameDialog.classList.add("hidden");
+    elements.renameDialog.setAttribute("aria-hidden", "true");
+    document.removeEventListener("keydown", handleDialogKeydown, true);
+    if (lastFocusedElement && typeof lastFocusedElement.focus === "function") {
+      window.setTimeout(() => {
+        lastFocusedElement.focus();
+      }, 30);
+    }
+    lastFocusedElement = null;
+  }
+
+  function handleRenameSubmit(event) {
+    event.preventDefault();
+    if (!elements.renameInput) {
+      closeNameDialog();
+      return;
+    }
+    const context = nameDialogContext;
+    const cleaned = sanitizeName(elements.renameInput.value);
+    nameDialogContext = null;
+    closeNameDialog();
+    if (context && typeof context.onConfirm === "function") {
+      context.onConfirm(cleaned);
+    }
+  }
+
+  function cancelNameDialog() {
+    const context = nameDialogContext;
+    nameDialogContext = null;
+    closeNameDialog();
+    if (context && typeof context.onCancel === "function") {
+      context.onCancel();
+    }
+  }
+
+  function handleDialogKeydown(event) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      cancelNameDialog();
+    }
   }
 })();
