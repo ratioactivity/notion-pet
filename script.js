@@ -512,6 +512,53 @@
     updateUI();
     showTemporaryEmote("heart", 2600, `${state.name} is relieved to be back`);
     saveState();
+    openNameDialog({
+      title: "A new pet is ready to move in! What will you name them?",
+      submitLabel: "Adopt",
+      initialValue: state.name,
+      onConfirm: (newName) => {
+        setName(newName);
+        setStatus(`${state.name} wiggles in to meet you.`);
+        updateUI();
+        saveState();
+      }
+    });
+  }
+
+  function revivePet() {
+    if (state.alive || state.reviveLevel == null) {
+      return;
+    }
+
+    const revivedLevel = clamp(state.reviveLevel, 1, LEVEL_CAP);
+    const previousLevel = state.level;
+
+    state.level = revivedLevel;
+    state.alive = true;
+    state.reviveLevel = null;
+    state.hunger = 0;
+    state.sleepiness = 0;
+    state.enrichment = 0;
+    state.bonding = 0;
+    state.lastTick = Date.now();
+    state.hungerMaxTimestamp = null;
+    state.sleepinessMaxTimestamp = null;
+    state.overloadStart = null;
+    state.deathNote = "";
+    state.deathSnarkLine = "";
+
+    stopAnimations();
+    hideEmotes();
+
+    const levelDrop = Math.max(0, previousLevel - state.level);
+    const message = levelDrop
+      ? `${state.name} returns, but their friendship level slipped to ${state.level}.`
+      : `${state.name} returns, grateful for a second chance.`;
+    setStatus(message);
+
+    updateUI();
+    showTemporaryEmote("heart", 2600, `${state.name} is relieved to be back`);
+    saveState();
   }
 
   function setName(name) {
@@ -871,8 +918,13 @@
       sanitized.overloadStart = typeof parsed.overloadStart === "number" ? parsed.overloadStart : null;
       sanitized.deathNote = typeof parsed.deathNote === "string" ? parsed.deathNote : "";
       sanitized.deathSnarkLine = typeof parsed.deathSnarkLine === "string" ? parsed.deathSnarkLine : "";
-      sanitized.reviveLevel =
-        typeof parsed.reviveLevel === "number" ? clamp(parsed.reviveLevel, 1, LEVEL_CAP) : null;
+      if (typeof parsed.reviveLevel === "number") {
+        sanitized.reviveLevel = clamp(parsed.reviveLevel, 1, LEVEL_CAP);
+      } else if (!sanitized.alive) {
+        sanitized.reviveLevel = clamp(Math.max(1, sanitized.level - 1), 1, LEVEL_CAP);
+      } else {
+        sanitized.reviveLevel = null;
+      }
       sanitized.createdAt = typeof parsed.createdAt === "number" ? parsed.createdAt : base.createdAt;
 
       isFirstLaunch = false;
