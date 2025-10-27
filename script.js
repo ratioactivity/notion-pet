@@ -470,6 +470,7 @@
     setName(state.name);
     setStatus(`${state.name} is ready for cozy adventures.`);
     updateUI();
+    showTemporaryEmote("heart", 2600, `${state.name} is relieved to be back`);
     saveState();
     openNameDialog({
       title: "A new pet is ready to move in! What will you name them?",
