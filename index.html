@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Notion Pet</title>
+    <link rel="preload" href="fonts/Starborn-Regular.ttf" as="font" type="font/ttf" crossorigin />
+    <link rel="preload" href="fonts/Papernotes-Regular.ttf" as="font" type="font/ttf" crossorigin />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="page" role="main">
+      <div class="layout-stack">
+        <div class="card-scaler" id="cardScaler">
+          <div class="pet-card" role="region" aria-label="Virtual pet companion">
+            <header class="name-bar">
+              <div class="name-display">
+                <span class="section-label">Name</span>
+                <h1 id="petName">Aurora</h1>
+              </div>
+              <div class="name-controls">
+                <div class="level-display" aria-live="polite">
+                  <span class="section-label">Friendship</span>
+                  <span class="level-value" aria-label="Friendship level"><span id="levelValue">1</span></span>
+                </div>
+                <button type="button" id="renameButton" class="ghost-button">Rename</button>
+              </div>
+            </header>
+
+            <section class="pet-stage" aria-live="polite">
+              <div class="pet-viewport">
+                <img
+                  id="petSprite"
+                  class="pet-sprite"
+                  src="assets/sprites/otter_idle_1.png"
+                  alt="Cozy otter companion"
+                />
+                <div id="petPlaceholder" class="pet-placeholder hidden" role="note"></div>
+                <img id="signalEmote" class="emote hidden" src="assets/emotes/stars.gif" alt="" />
+                <img id="moodEmote" class="emote hidden" src="assets/emotes/tears.gif" alt="" />
+                <img id="fishEmote" class="emote hidden" src="assets/fish/fishfood1.png" alt="Fish snack" />
+                <img
+                  id="crownEmote"
+                  class="emote crown hidden"
+                  src="assets/emotes/crown.png"
+                  alt="Crown emote"
+                />
+              </div>
+            </section>
+
+            <p id="statusMessage" class="status-message" aria-live="polite">
+              Aurora is feeling cozy.
+            </p>
+
+            <section class="stats-panel" aria-label="Pet stats">
+              <article class="stat">
+                <span class="stat-title">Hunger</span>
+                <div
+                  class="progress"
+                  role="progressbar"
+                  aria-label="Hunger"
+                  aria-orientation="horizontal"
+                  aria-valuemin="0"
+                  aria-valuemax="20"
+                  aria-valuenow="0"
+                >
+                  <div class="progress-fill" id="hungerFill"></div>
+                </div>
+              </article>
+              <article class="stat">
+                <span class="stat-title">Sleepiness</span>
+                <div
+                  class="progress"
+                  role="progressbar"
+                  aria-label="Sleepiness"
+                  aria-orientation="horizontal"
+                  aria-valuemin="0"
+                  aria-valuemax="20"
+                  aria-valuenow="0"
+                >
+                  <div class="progress-fill" id="sleepinessFill"></div>
+                </div>
+              </article>
+              <article class="stat">
+                <span class="stat-title">Enrichment</span>
+                <div
+                  class="progress"
+                  role="progressbar"
+                  aria-label="Enrichment"
+                  aria-orientation="horizontal"
+                  aria-valuemin="0"
+                  aria-valuemax="20"
+                  aria-valuenow="0"
+                >
+                  <div class="progress-fill" id="enrichmentFill"></div>
+                </div>
+              </article>
+              <article class="stat">
+                <span class="stat-title">Bonding</span>
+                <div
+                  class="progress"
+                  role="progressbar"
+                  aria-label="Bonding"
+                  aria-orientation="horizontal"
+                  aria-valuemin="0"
+                  aria-valuemax="20"
+                  aria-valuenow="0"
+                >
+                  <div class="progress-fill" id="bondingFill"></div>
+                </div>
+              </article>
+            </section>
+
+            <section class="actions" aria-label="Pet actions">
+              <button type="button" class="action" data-action="feed">
+                <span class="action-title">Feed</span>
+                <span class="action-detail">Share a fishy snack</span>
+              </button>
+              <button type="button" class="action" data-action="pet">
+                <span class="action-title">Pet</span>
+                <span class="action-detail">Give cozy scritches</span>
+              </button>
+              <button type="button" class="action" data-action="play">
+                <span class="action-title">Play</span>
+                <span class="action-detail">Toys and tumbles</span>
+              </button>
+              <button type="button" class="action" data-action="exercise">
+                <span class="action-title">Exercise</span>
+                <span class="action-detail">Go for a run</span>
+              </button>
+              <button type="button" class="action" data-action="sleep">
+                <span class="action-title">Sleep</span>
+                <span class="action-detail">Tuck in for rest</span>
+              </button>
+              <button
+                type="button"
+                class="action settings-trigger"
+                id="settingsButton"
+                aria-haspopup="dialog"
+                aria-expanded="false"
+              >
+                <span class="action-title">Settings</span>
+                <span class="action-detail">Display &amp; vacation</span>
+              </button>
+            </section>
+
+            <div class="afterlife-actions hidden" id="afterlifeActions">
+              <button type="button" id="reviveButton" class="adopt-button revive-button hidden">
+                Revive your pet
+              </button>
+              <button type="button" id="adoptButton" class="adopt-button hidden">Adopt a new pet</button>
+            </div>
+          </div>
+
+          <div
+            class="dialog-backdrop hidden"
+            id="renameDialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="renameTitle"
+            aria-hidden="true"
+          >
+            <form class="dialog-card" id="renameForm">
+              <h2 id="renameTitle">Rename your pet</h2>
+              <label class="dialog-label" for="renameInput">New name</label>
+              <input
+                id="renameInput"
+                name="renameInput"
+                type="text"
+                maxlength="18"
+                autocomplete="off"
+                required
+              />
+              <div class="dialog-actions">
+                <button type="button" class="ghost-button" id="renameCancel">Cancel</button>
+                <button type="submit" class="primary-button" id="renameSubmit">Save</button>
+              </div>
+            </form>
+          </div>
+
+          <div
+            class="dialog-backdrop hidden"
+            id="settingsDialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settingsTitle"
+            aria-hidden="true"
+          >
+            <div class="dialog-card settings-card">
+              <div class="settings-header">
+                <h2 id="settingsTitle">Settings</h2>
+                <button type="button" class="ghost-button dialog-close" id="settingsClose">Close</button>
+              </div>
+              <div class="settings-body">
+                <section class="settings-section" aria-labelledby="displaySettingsTitle">
+                  <div class="settings-section-header">
+                    <h3 id="displaySettingsTitle">Display size</h3>
+                    <p class="settings-note">Choose a size that fits your Notion embed.</p>
+                  </div>
+                  <div class="size-options" role="group" aria-label="Choose interface scale">
+                    <button
+                      type="button"
+                      class="size-button"
+                      data-scale-mode="auto"
+                      aria-pressed="false"
+                      data-initial-focus="true"
+                    >
+                      Auto
+                    </button>
+                    <button
+                      type="button"
+                      class="size-button"
+                      data-scale-mode="manual"
+                      data-scale-value="1"
+                      aria-pressed="false"
+                    >
+                      Large
+                    </button>
+                    <button
+                      type="button"
+                      class="size-button"
+                      data-scale-mode="manual"
+                      data-scale-value="0.85"
+                      aria-pressed="false"
+                    >
+                      Medium
+                    </button>
+                    <button
+                      type="button"
+                      class="size-button"
+                      data-scale-mode="manual"
+                      data-scale-value="0.72"
+                      aria-pressed="false"
+                    >
+                      Small
+                    </button>
+                  </div>
+                </section>
+
+                <section class="settings-section" aria-labelledby="vacationSettingsTitle">
+                  <div class="settings-section-header">
+                    <h3 id="vacationSettingsTitle">Vacation mode</h3>
+                    <p class="settings-note">Let your pet keep up with meals and naps automatically.</p>
+                  </div>
+                  <label class="toggle-control" for="vacationToggle">
+                    <input type="checkbox" id="vacationToggle" />
+                    <span class="toggle-visual" aria-hidden="true">
+                      <span class="toggle-thumb"></span>
+                    </span>
+                    <span class="toggle-copy">
+                      <span class="toggle-title">Vacation mode</span>
+                      <span class="toggle-detail">Auto feed &amp; tuck in until you return.</span>
+                    </span>
+                  </label>
+                </section>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script src="script.js" defer></script>
+  </body>
+</html>
