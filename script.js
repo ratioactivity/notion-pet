@@ -104,11 +104,15 @@
     petPlaceholder: document.getElementById("petPlaceholder"),
     statusMessage: document.getElementById("statusMessage"),
     renameButton: document.getElementById("renameButton"),
+    settingsButton: document.getElementById("settingsButton"),
     adoptButton: document.getElementById("adoptButton"),
     afterlifeActions: document.getElementById("afterlifeActions"),
     reviveButton: document.getElementById("reviveButton"),
     cardScaler: document.getElementById("cardScaler"),
     petCard: document.querySelector(".pet-card"),
+    settingsDialog: document.getElementById("settingsDialog"),
+    settingsClose: document.getElementById("settingsClose"),
+    vacationToggle: document.getElementById("vacationToggle"),
     sizeButtons: Array.from(document.querySelectorAll("[data-scale-mode]")),
     root: document.documentElement,
     renameDialog: document.getElementById("renameDialog"),
@@ -134,6 +138,7 @@
   let pendingScaleSync = false;
   let lastFocusedElement = null;
   let nameDialogContext = null;
+  let settingsDialogOpen = false;
 
   const storage = initStorage();
   let isFirstLaunch = false;
@@ -208,6 +213,28 @@
       elements.reviveButton.addEventListener("click", revivePet);
     }
 
+    if (elements.settingsButton) {
+      elements.settingsButton.addEventListener("click", openSettingsDialog);
+    }
+
+    if (elements.settingsClose) {
+      elements.settingsClose.addEventListener("click", closeSettingsDialog);
+    }
+
+    if (elements.settingsDialog) {
+      elements.settingsDialog.addEventListener("click", (event) => {
+        if (event.target === elements.settingsDialog) {
+          closeSettingsDialog();
+        }
+      });
+    }
+
+    if (elements.vacationToggle) {
+      elements.vacationToggle.addEventListener("change", (event) => {
+        setVacationMode(Boolean(event.target.checked));
+      });
+    }
+
     if (elements.renameForm) {
       elements.renameForm.addEventListener("submit", handleRenameSubmit);
     }
@@ -226,7 +253,7 @@
   }
 
   function setupSizeControls() {
-    if (!elements.cardScaler || !elements.petCard) {
+    if (!elements.cardScaler || !elements.petCard || !elements.sizeButtons || !elements.sizeButtons.length) {
       return;
     }
 
@@ -356,7 +383,10 @@
   function applyTimeProgress(now) {
     if (state.lastTick > now) {
       state.lastTick = now;
-      return false;
+    }
+
+    if (state.vacationMode) {
+      return applyVacationCare(now);
     }
 
     const elapsed = now - state.lastTick;
@@ -421,6 +451,13 @@
   }
 
   function updateOverloadState(now) {
+    if (state.vacationMode) {
+      state.hungerMaxTimestamp = null;
+      state.sleepinessMaxTimestamp = null;
+      state.overloadStart = null;
+      return false;
+    }
+
     if (state.hungerMaxTimestamp && state.sleepinessMaxTimestamp) {
       const start = Math.max(state.hungerMaxTimestamp, state.sleepinessMaxTimestamp);
       state.overloadStart = start;
@@ -466,9 +503,61 @@
   function adoptNewPet() {
     stopAnimations();
     hideEmotes();
+    const preserveVacation = state.vacationMode;
     state = createDefaultState();
+    state.vacationMode = preserveVacation;
+    if (state.vacationMode) {
+      applyVacationCare();
+    }
     setName(state.name);
     setStatus(`${state.name} is ready for cozy adventures.`);
+    updateUI();
+    showTemporaryEmote("heart", 2600, `${state.name} is relieved to be back`);
+    saveState();
+    openNameDialog({
+      title: "A new pet is ready to move in! What will you name them?",
+      submitLabel: "Adopt",
+      initialValue: state.name,
+      onConfirm: (newName) => {
+        setName(newName);
+        setStatus(`${state.name} wiggles in to meet you.`);
+        updateUI();
+        saveState();
+      }
+    });
+  }
+
+  function revivePet() {
+    if (state.alive || state.reviveLevel == null) {
+      return;
+    }
+
+    const revivedLevel = clamp(state.reviveLevel, 1, LEVEL_CAP);
+    const previousLevel = state.level;
+
+    state.level = revivedLevel;
+    state.alive = true;
+    state.reviveLevel = null;
+    state.hunger = 0;
+    state.sleepiness = 0;
+    state.enrichment = 0;
+    state.bonding = 0;
+    state.lastTick = Date.now();
+    state.hungerMaxTimestamp = null;
+    state.sleepinessMaxTimestamp = null;
+    state.overloadStart = null;
+    state.deathNote = "";
+    state.deathSnarkLine = "";
+
+    stopAnimations();
+    hideEmotes();
+
+    const levelDrop = Math.max(0, previousLevel - state.level);
+    const message = levelDrop
+      ? `${state.name} returns, but their friendship level slipped to ${state.level}.`
+      : `${state.name} returns, grateful for a second chance.`;
+    setStatus(message);
+
     updateUI();
     showTemporaryEmote("heart", 2600, `${state.name} is relieved to be back`);
     saveState();
@@ -531,6 +620,49 @@
     lastActionMessage = message ? message.trim() : "";
   }
 
+  function setVacationMode(enabled) {
+    const active = Boolean(enabled);
+
+    if (state.vacationMode === active) {
+      if (active && state.alive) {
+        const cared = applyVacationCare();
+        if (cared) {
+          updateUI();
+          saveState();
+        }
+      }
+      return;
+    }
+
+    state.vacationMode = active;
+
+    if (!state.alive) {
+      updateUI();
+      saveState();
+      return;
+    }
+
+    if (active) {
+      applyVacationCare();
+      setStatus(`${state.name} is resting easy on vacation mode.`);
+    } else {
+      state.lastTick = Date.now();
+      setStatus(`${state.name} is ready for your care again.`);
+    }
+
+    updateUI();
+    saveState();
+  }
+
+  function applyVacationCare(now = Date.now()) {
+    const needsChanged = state.hunger !== 0 || state.sleepiness !== 0;
+    setHunger(0);
+    setSleepiness(0);
+    state.lastTick = now;
+    state.overloadStart = null;
+    return needsChanged;
+  }
+
   function updateUI() {
     elements.petName.textContent = state.name;
     elements.levelValue.textContent = state.level;
@@ -573,6 +705,13 @@
         elements.reviveButton.setAttribute("aria-label", reviveLabel);
       }
     }
+    if (elements.settingsButton) {
+      elements.settingsButton.classList.toggle("vacation-on", state.vacationMode);
+      elements.settingsButton.setAttribute("aria-expanded", settingsDialogOpen ? "true" : "false");
+    }
+    if (elements.vacationToggle) {
+      elements.vacationToggle.checked = Boolean(state.vacationMode);
+    }
     elements.renameButton.disabled = !showPet;
     elements.renameButton.setAttribute("aria-disabled", showPet ? "false" : "true");
 
@@ -608,9 +747,12 @@
     }
 
     const base = lastActionMessage || `${state.name} is feeling cozy.`;
-    const message = warnings.length ? `${base} ${warnings.join(" ")}` : base;
+    let message = warnings.length ? `${base} ${warnings.join(" ")}` : base;
+    if (state.vacationMode) {
+      message = `${message} Vacation mode is caring for them while you're away.`;
+    }
     elements.statusMessage.textContent = message.trim();
-    elements.statusMessage.classList.toggle("warning", warnings.length > 0);
+    elements.statusMessage.classList.toggle("warning", warnings.length > 0 && !state.vacationMode);
   }
 
   function updateMoodEmote() {
@@ -855,6 +997,7 @@
       deathNote: "",
       deathSnarkLine: "",
       reviveLevel: null,
+      vacationMode: false,
       createdAt: now
     };
   }
@@ -896,6 +1039,7 @@
       } else {
         sanitized.reviveLevel = null;
       }
+      sanitized.vacationMode = parsed.vacationMode === true;
       sanitized.createdAt = typeof parsed.createdAt === "number" ? parsed.createdAt : base.createdAt;
 
       isFirstLaunch = false;
@@ -956,6 +1100,7 @@
       deathNote: state.deathNote,
       deathSnarkLine: state.deathSnarkLine,
       reviveLevel: state.reviveLevel,
+      vacationMode: state.vacationMode,
       createdAt: state.createdAt
     };
     try {
@@ -1074,6 +1219,70 @@
       mapped[key] = frames.map((frame) => SPRITE_PATH + frame);
     });
     return mapped;
+  }
+
+  function openSettingsDialog() {
+    if (!elements.settingsDialog || settingsDialogOpen) {
+      return;
+    }
+
+    settingsDialogOpen = true;
+    updateScaleButtons();
+
+    const activeElement = document.activeElement;
+    lastFocusedElement = activeElement && typeof activeElement.focus === "function" ? activeElement : null;
+
+    elements.settingsDialog.classList.remove("hidden");
+    elements.settingsDialog.setAttribute("aria-hidden", "false");
+
+    if (elements.settingsButton) {
+      elements.settingsButton.setAttribute("aria-expanded", "true");
+    }
+
+    const focusTarget =
+      elements.settingsDialog.querySelector("[data-initial-focus]") ||
+      elements.settingsDialog.querySelector(
+        "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])"
+      ) ||
+      elements.settingsClose;
+
+    window.setTimeout(() => {
+      if (focusTarget && typeof focusTarget.focus === "function") {
+        focusTarget.focus();
+      }
+    }, 20);
+
+    document.addEventListener("keydown", handleSettingsKeydown, true);
+  }
+
+  function closeSettingsDialog() {
+    if (!elements.settingsDialog || !settingsDialogOpen) {
+      return;
+    }
+
+    settingsDialogOpen = false;
+    elements.settingsDialog.classList.add("hidden");
+    elements.settingsDialog.setAttribute("aria-hidden", "true");
+    document.removeEventListener("keydown", handleSettingsKeydown, true);
+
+    if (elements.settingsButton) {
+      elements.settingsButton.setAttribute("aria-expanded", "false");
+    }
+
+    if (lastFocusedElement && typeof lastFocusedElement.focus === "function") {
+      window.setTimeout(() => {
+        lastFocusedElement.focus();
+      }, 30);
+    }
+
+    lastFocusedElement = null;
+  }
+
+  function handleSettingsKeydown(event) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeSettingsDialog();
+    }
   }
 
   function openNameDialog({

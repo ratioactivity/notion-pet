@@ -132,42 +132,16 @@
                 <span class="action-title">Sleep</span>
                 <span class="action-detail">Tuck in for rest</span>
               </button>
-              <div class="action size-tile">
-                <span class="action-title">Display</span>
-                <span class="action-detail">Adjust interface size</span>
-                <div class="size-options" role="group" aria-label="Choose interface scale">
-                  <button type="button" class="size-button" data-scale-mode="auto" aria-pressed="false">
-                    Auto
-                  </button>
-                  <button
-                    type="button"
-                    class="size-button"
-                    data-scale-mode="manual"
-                    data-scale-value="1"
-                    aria-pressed="false"
-                  >
-                    Large
-                  </button>
-                  <button
-                    type="button"
-                    class="size-button"
-                    data-scale-mode="manual"
-                    data-scale-value="0.85"
-                    aria-pressed="false"
-                  >
-                    Medium
-                  </button>
-                  <button
-                    type="button"
-                    class="size-button"
-                    data-scale-mode="manual"
-                    data-scale-value="0.72"
-                    aria-pressed="false"
-                  >
-                    Small
-                  </button>
-                </div>
-              </div>
+              <button
+                type="button"
+                class="action settings-trigger"
+                id="settingsButton"
+                aria-haspopup="dialog"
+                aria-expanded="false"
+              >
+                <span class="action-title">Settings</span>
+                <span class="action-detail">Display &amp; vacation</span>
+              </button>
             </section>
 
             <div class="afterlife-actions hidden" id="afterlifeActions">
@@ -202,6 +176,85 @@
                 <button type="submit" class="primary-button" id="renameSubmit">Save</button>
               </div>
             </form>
+          </div>
+
+          <div
+            class="dialog-backdrop hidden"
+            id="settingsDialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settingsTitle"
+            aria-hidden="true"
+          >
+            <div class="dialog-card settings-card">
+              <div class="settings-header">
+                <h2 id="settingsTitle">Settings</h2>
+                <button type="button" class="ghost-button dialog-close" id="settingsClose">Close</button>
+              </div>
+              <div class="settings-body">
+                <section class="settings-section" aria-labelledby="displaySettingsTitle">
+                  <div class="settings-section-header">
+                    <h3 id="displaySettingsTitle">Display size</h3>
+                    <p class="settings-note">Choose a size that fits your Notion embed.</p>
+                  </div>
+                  <div class="size-options" role="group" aria-label="Choose interface scale">
+                    <button
+                      type="button"
+                      class="size-button"
+                      data-scale-mode="auto"
+                      aria-pressed="false"
+                      data-initial-focus="true"
+                    >
+                      Auto
+                    </button>
+                    <button
+                      type="button"
+                      class="size-button"
+                      data-scale-mode="manual"
+                      data-scale-value="1"
+                      aria-pressed="false"
+                    >
+                      Large
+                    </button>
+                    <button
+                      type="button"
+                      class="size-button"
+                      data-scale-mode="manual"
+                      data-scale-value="0.85"
+                      aria-pressed="false"
+                    >
+                      Medium
+                    </button>
+                    <button
+                      type="button"
+                      class="size-button"
+                      data-scale-mode="manual"
+                      data-scale-value="0.72"
+                      aria-pressed="false"
+                    >
+                      Small
+                    </button>
+                  </div>
+                </section>
+
+                <section class="settings-section" aria-labelledby="vacationSettingsTitle">
+                  <div class="settings-section-header">
+                    <h3 id="vacationSettingsTitle">Vacation mode</h3>
+                    <p class="settings-note">Let your pet keep up with meals and naps automatically.</p>
+                  </div>
+                  <label class="toggle-control" for="vacationToggle">
+                    <input type="checkbox" id="vacationToggle" />
+                    <span class="toggle-visual" aria-hidden="true">
+                      <span class="toggle-thumb"></span>
+                    </span>
+                    <span class="toggle-copy">
+                      <span class="toggle-title">Vacation mode</span>
+                      <span class="toggle-detail">Auto feed &amp; tuck in until you return.</span>
+                    </span>
+                  </label>
+                </section>
+              </div>
+            </div>
           </div>
         </div>
       </div>
